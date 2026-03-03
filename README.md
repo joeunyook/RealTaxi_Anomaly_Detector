@@ -8,7 +8,7 @@ The goal is to detect sudden drops, spikes, or unusual behavior in city-level ta
 ## Dataset
 
 We use the NYC Taxi dataset from the Numenta Anomaly Benchmark 
-The data is a 30-minute aggregated time-series of passenger counts with labeled anomalies.
+The data is a 30 minute aggregated time series of passenger counts with labeled anomalies.
 
 ## Objective
 Our model generates an anomaly score at each time step and flags abnormal events.
