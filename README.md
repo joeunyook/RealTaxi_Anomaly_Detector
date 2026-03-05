@@ -16,3 +16,66 @@ Performance is evaluated using AUC-ROC and detection delay.
 
 ## Approach
 We compare traditional methods (LOF, Isolation Forest, KNN), incremental models, ensemble methods, and deep temporal models (CNN, GRU, LSTM, Transformer) with our custom built anomaly detector.
+
+# RealTaxi Anomaly Detector
+Time-series anomaly detection pipeline for NYC taxi demand using LOF, RNN, and VAE models with ensemble scoring.
+
+---
+
+## Project Structure
+.
+├── data/                raw dataset (nyc_taxi.csv)
+├── src/                 core library code
+│   ├── models/          LOF, RNN, VAE implementations
+│   ├── train/           training pipelines
+│   ├── infer/           inference utilities
+│   ├── data_utils.py    preprocessing + window generation
+│   ├── metrics.py       evaluation metrics
+│   └── plotting.py      visualization utilities
+├── scripts/             experiment pipeline
+│   ├── 01_make_splits.py
+│   ├── 02_train_models.py
+│   ├── 03_generate_scores.py
+│   ├── 04_select_thresholds.py
+│   └── 05_eval_and_plots.py
+├── models/              saved trained models
+└── outputs/             experiment outputs (scores, predictions, plots, tables)
+
+---
+
+## Pipeline
+Run from the project root:
+
+python -m scripts.01_make_splits
+python -m scripts.02_train_models
+python -m scripts.03_generate_scores
+python -m scripts.04_select_thresholds
+python -m scripts.05_eval_and_plots
+
+---
+
+## Models
+LOF      density-based anomaly detection baseline  
+RNN      supervised temporal classifier on sliding windows  
+VAE      reconstruction-based anomaly detection  
+ENS      ensemble of normalized model scores  
+
+---
+
+## Evaluation
+Metrics reported:
+
+AUROC    ranking ability of anomaly scores  
+AUPRC    precision-recall performance under class imbalance  
+
+Results are saved in:
+
+outputs/scores.csv
+outputs/preds.csv
+outputs/figures/
+outputs/tables/table1.csv
+
+---
+
+## Setup
+pip install -r requirements.txt
