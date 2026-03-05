@@ -17,10 +17,6 @@ Performance is evaluated using AUC-ROC and detection delay.
 ## Approach
 We compare traditional methods (LOF, Isolation Forest, KNN), incremental models, ensemble methods, and deep temporal models (CNN, GRU, LSTM, Transformer) with our custom built anomaly detector.
 
-# RealTaxi Anomaly Detector
-Time-series anomaly detection pipeline for NYC taxi demand using LOF, RNN, and VAE models with ensemble scoring.
-
-
 ---
 
 ## Pipeline
