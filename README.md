@@ -20,26 +20,6 @@ We compare traditional methods (LOF, Isolation Forest, KNN), incremental models,
 # RealTaxi Anomaly Detector
 Time-series anomaly detection pipeline for NYC taxi demand using LOF, RNN, and VAE models with ensemble scoring.
 
----
-
-## Project Structure
-.
-├── data/                raw dataset (nyc_taxi.csv)
-├── src/                 core library code
-│   ├── models/          LOF, RNN, VAE implementations
-│   ├── train/           training pipelines
-│   ├── infer/           inference utilities
-│   ├── data_utils.py    preprocessing + window generation
-│   ├── metrics.py       evaluation metrics
-│   └── plotting.py      visualization utilities
-├── scripts/             experiment pipeline
-│   ├── 01_make_splits.py
-│   ├── 02_train_models.py
-│   ├── 03_generate_scores.py
-│   ├── 04_select_thresholds.py
-│   └── 05_eval_and_plots.py
-├── models/              saved trained models
-└── outputs/             experiment outputs (scores, predictions, plots, tables)
 
 ---
 
