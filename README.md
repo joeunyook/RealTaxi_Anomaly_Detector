@@ -23,9 +23,13 @@ We compare traditional methods (LOF, Isolation Forest, KNN), incremental models,
 Run from the project root:
 
 python -m scripts.01_make_splits
+
 python -m scripts.02_train_models
+
 python -m scripts.03_generate_scores
+
 python -m scripts.04_select_thresholds
+
 python -m scripts.05_eval_and_plots
 
 ---
