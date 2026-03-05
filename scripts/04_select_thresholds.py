@@ -1,3 +1,8 @@
+# Threshold selection, τ
+# For each model, choose τ* = argmax_τ F1_val(τ)
+# Then apply τ* to test scores: pred = 1 if score > τ*, else 0
+# This produces binary prediction columns: LOF_pred, RNN_pred, VAE_pred, ENS_pred
+
 import json
 import pickle
 import pandas as pd
