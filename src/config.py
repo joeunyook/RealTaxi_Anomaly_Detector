@@ -1,7 +1,7 @@
-# Here we put hyperparameters, paths, and experimen constants
-# Hyperparameters : LofCfg, TrainCfg, DataCfg 
-# Split : Chronological split(no shuffle) -> The data is temporal, 30 days for every 30 min data. We used 60/20/20 split
-# Inductive bias : daily pattern of morning/evening taxi demand taken into account, we added sin/cos time features to encode cyclic preiodicity
+# Here we put hyperparameters, paths, and experiment constants
+# Hyperparameters : LofCfg, TrainCfg, DataCfg, TradCfg, IncrementalCfg
+# Split : Chronological split (no shuffle) -> The data is temporal, 30 days for every 30 min data. We used 60/20/20 split
+# Inductive bias : daily pattern of morning/evening taxi demand taken into account, we added sin/cos time features to encode cyclic periodicity
 
 # Hyperparameters are currently fixed. Future iterations will use Vertex AI hyperparameter tuning to automatically search the parameter space and optimize validation performance
 
@@ -41,7 +41,34 @@ class TrainCfg:
     RNN_BATCH: int = 256
     RNN_DROPOUT: float = 0.0
 
-    #VAE
+    # LSTM
+    LSTM_EPOCHS: int = 5
+    LSTM_LR: float = 1e-3
+    LSTM_HIDDEN: int = 64
+    LSTM_LAYERS: int = 2
+    LSTM_BATCH: int = 256
+    LSTM_DROPOUT: float = 0.1
+
+    # CNN
+    CNN_EPOCHS: int = 5
+    CNN_LR: float = 1e-3
+    CNN_FILTERS: int = 64
+    CNN_KERNEL: int = 3
+    CNN_LAYERS: int = 3
+    CNN_BATCH: int = 256
+    CNN_DROPOUT: float = 0.1
+
+    # Transformer
+    TF_EPOCHS: int = 5
+    TF_LR: float = 1e-3
+    TF_D_MODEL: int = 64
+    TF_NHEAD: int = 4
+    TF_LAYERS: int = 2
+    TF_DIM_FF: int = 128
+    TF_BATCH: int = 256
+    TF_DROPOUT: float = 0.1
+
+    # VAE
     VAE_EPOCHS: int = 10
     VAE_LR: float = 1e-3
     VAE_HIDDEN: int = 128
@@ -53,3 +80,17 @@ class TrainCfg:
 class LofCfg:
     N_NEIGHBORS: int = 35
     CONTAMINATION: float = 0.1     # used only for internal LOF behavior
+
+@dataclass(frozen=True)
+class TradCfg:
+    # Isolation Forest
+    IF_N_ESTIMATORS: int = 100
+    IF_CONTAMINATION: float = 0.1
+    IF_RANDOM_STATE: int = 42
+    # KNN
+    KNN_N_NEIGHBORS: int = 10
+
+@dataclass(frozen=True)
+class IncrementalCfg:
+    ALPHA: float = 0.05            # EMA decay factor
+    WARMUP: int = 48               # windows before scoring starts
