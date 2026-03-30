@@ -4,18 +4,17 @@ import torch.nn.functional as F
 from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader, TensorDataset
 
-from src.models.rnn import GRUSeasonalBaseline
+from src.models.mlp import MLPSeasonalBaseline
 
 
 def _auroc_from_errors(model, loader, device):
-    """AUROC using max raw absolute error per window — no normalisation needed for ranking."""
     model.eval()
     all_scores, all_labels = [], []
     with torch.no_grad():
         for xb, yb in loader:
             xb    = xb.to(device)
-            err   = model.raw_errors(xb)               # (B, W)
-            score = err.max(dim=1).values              # (B,)
+            err   = model.raw_errors(xb)
+            score = err.max(dim=1).values
             all_scores.append(score.cpu().numpy())
             all_labels.append(yb.numpy())
     scores = np.concatenate(all_scores)
@@ -25,33 +24,28 @@ def _auroc_from_errors(model, loader, device):
     return float(roc_auc_score(labels, scores))
 
 
-def train_rnn(X_train, y_train,
+def train_mlp(X_train, y_train,
               X_val,   y_val,
               cfg, out_path,
               X_test=None, y_test=None):
     """
-    Train the GRU seasonal baseline.
+    Train the MLP seasonal baseline.
 
-    The GRU receives only time features [sin_hour, cos_hour, sin_dow, cos_dow]
-    and predicts the demand value at each timestep.  Trained exclusively on
-    normal windows, it learns what demand *should* look like given the time of
-    day and day of week.
-
-    At inference, anomaly score = sigmoid-normalised |pred - actual|.
-    Holiday/event demand deviates far from the learned seasonal expectation
-    regardless of how gradual the descent is — directly addressing the
-    contextual anomaly blindspot of next-step prediction.
+    Identical objective to GRUSeasonalBaseline — predict demand from time
+    features only — but using a pointwise MLP instead of a recurrent network.
+    Each timestep is processed independently (no hidden state), which is the
+    correct architecture when input features carry no sequential dependency.
 
     Parameters
     ----------
-    X_train / X_val / X_test : (N, W, D)  D = 5: value, sin_h, cos_h, sin_d, cos_d
-    y_train / y_val / y_test : (N,)  binary labels (y_train is normal-only by construction)
+    X_train / X_val / X_test : (N, W, D)
+    y_train / y_val / y_test : (N,)  binary labels
     """
     torch.manual_seed(cfg.SEED)
     device = torch.device(cfg.DEVICE if torch.cuda.is_available() else "cpu")
-    print(f"[RNN] device={device}")
+    print(f"[MLP] device={device}")
 
-    time_dim = X_train.shape[-1] - 1   # 4: sin_hour, cos_hour, sin_dow, cos_dow
+    time_dim = X_train.shape[-1] - 1   # 4
 
     Xtr = torch.tensor(X_train, dtype=torch.float32)
     ytr = torch.tensor(y_train, dtype=torch.float32)
@@ -59,33 +53,31 @@ def train_rnn(X_train, y_train,
     yva = torch.tensor(y_val,   dtype=torch.float32)
 
     tr_loader = DataLoader(TensorDataset(Xtr, ytr),
-                           batch_size=cfg.RNN_BATCH, shuffle=True,  drop_last=False)
+                           batch_size=cfg.MLP_BATCH, shuffle=True,  drop_last=False)
     va_loader = DataLoader(TensorDataset(Xva, yva),
-                           batch_size=cfg.RNN_BATCH, shuffle=False, drop_last=False)
+                           batch_size=cfg.MLP_BATCH, shuffle=False, drop_last=False)
 
     has_test = X_test is not None and y_test is not None
     if has_test:
         Xte = torch.tensor(X_test, dtype=torch.float32)
         yte = torch.tensor(y_test, dtype=torch.float32)
         te_loader = DataLoader(TensorDataset(Xte, yte),
-                               batch_size=cfg.RNN_BATCH, shuffle=False, drop_last=False)
+                               batch_size=cfg.MLP_BATCH, shuffle=False, drop_last=False)
 
-    print(f"[RNN] train windows: {len(X_train)} (normal-only)  time_dim={time_dim}")
+    print(f"[MLP] train windows: {len(X_train)} (normal-only)  time_dim={time_dim}")
 
-    # ── model / optimiser ─────────────────────────────────────────────────
-    model = GRUSeasonalBaseline(
+    model = MLPSeasonalBaseline(
         time_dim = time_dim,
-        hidden   = cfg.RNN_HIDDEN,
-        layers   = cfg.RNN_LAYERS,
-        dropout  = cfg.RNN_DROPOUT,
+        hidden_1 = cfg.MLP_HIDDEN_1,
+        hidden_2 = cfg.MLP_HIDDEN_2,
+        dropout  = cfg.MLP_DROPOUT,
     ).to(device)
 
-    opt       = torch.optim.Adam(model.parameters(), lr=cfg.RNN_LR)
+    opt       = torch.optim.Adam(model.parameters(), lr=cfg.MLP_LR)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        opt, mode="max", factor=cfg.RNN_LR_FACTOR, patience=cfg.RNN_LR_PATIENCE,
+        opt, mode="max", factor=cfg.MLP_LR_FACTOR, patience=cfg.MLP_LR_PATIENCE,
     )
 
-    # ── training loop ─────────────────────────────────────────────────────
     best_val_auroc   = -1.0
     best_test_auroc  = None
     patience_counter = 0
@@ -93,38 +85,36 @@ def train_rnn(X_train, y_train,
     sep    = "─" * 95
     header = (f"{'Ep':>4} {'tr_MSE':>10} {'va_MSE':>10} "
               f"{'val_AUROC':>10} {'test_AUROC':>11} {'lr':>10}")
-    print(f"\n[RNN] Seasonal baseline training  (epochs={cfg.RNN_EPOCHS}, "
-          f"patience={cfg.RNN_PATIENCE})")
+    print(f"\n[MLP] Seasonal baseline training  (epochs={cfg.MLP_EPOCHS}, "
+          f"patience={cfg.MLP_PATIENCE})")
     print(sep); print(header); print(sep)
 
-    for epoch in range(cfg.RNN_EPOCHS):
-        # ── train ──
+    for epoch in range(cfg.MLP_EPOCHS):
         model.train()
         tr_mse, n = 0.0, 0
         for xb, _ in tr_loader:
             xb     = xb.to(device)
-            x_time = xb[:, :, 1:]           # (B, W, time_dim)
-            x_val  = xb[:, :, 0]            # (B, W) actual demand
+            x_time = xb[:, :, 1:]
+            x_val  = xb[:, :, 0]
             opt.zero_grad()
-            pred   = model(x_time)           # (B, W)
+            pred   = model(x_time)
             loss   = F.mse_loss(pred, x_val)
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.RNN_GRAD_CLIP)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.MLP_GRAD_CLIP)
             opt.step()
             tr_mse += loss.item() * xb.size(0)
             n      += xb.size(0)
         tr_mse /= max(n, 1)
 
-        # ── val ──
         model.eval()
         va_mse, n = 0.0, 0
         with torch.no_grad():
             for xb, _ in va_loader:
                 xb     = xb.to(device)
                 x_time = xb[:, :, 1:]
-                x_val  = xb[:, :, 0]
+                x_val2 = xb[:, :, 0]
                 pred   = model(x_time)
-                va_mse += F.mse_loss(pred, x_val).item() * xb.size(0)
+                va_mse += F.mse_loss(pred, x_val2).item() * xb.size(0)
                 n      += xb.size(0)
         va_mse /= max(n, 1)
 
@@ -135,7 +125,7 @@ def train_rnn(X_train, y_train,
         cur_lr = opt.param_groups[0]["lr"]
 
         marker = " ◀ best" if val_auroc > best_val_auroc else ""
-        print(f"[RNN] {epoch+1:4d}/{cfg.RNN_EPOCHS}  "
+        print(f"[MLP] {epoch+1:4d}/{cfg.MLP_EPOCHS}  "
               f"tr_MSE={tr_mse:.5f}  va_MSE={va_mse:.5f}  "
               f"val_AUROC={val_auroc:.4f}  test_AUROC={test_auroc:.4f}  "
               f"lr={cur_lr:.2e}{marker}")
@@ -147,18 +137,17 @@ def train_rnn(X_train, y_train,
             torch.save(model.state_dict(), out_path)
         else:
             patience_counter += 1
-            if patience_counter >= cfg.RNN_PATIENCE:
+            if patience_counter >= cfg.MLP_PATIENCE:
                 print(sep)
-                print(f"[RNN] Early stop at epoch {epoch+1}  "
+                print(f"[MLP] Early stop at epoch {epoch+1}  "
                       f"best val_AUROC={best_val_auroc:.4f}  "
                       f"test_AUROC@best={best_test_auroc:.4f}")
                 break
 
     print(sep)
-    print(f"[RNN] Done. Best val_AUROC={best_val_auroc:.4f}  "
-          f"test_AUROC@best={best_test_auroc}")
+    print(f"[MLP] Done. Best val_AUROC={best_val_auroc:.4f}  test_AUROC@best={best_test_auroc}")
 
-    # ── fit error normalisation on training set ───────────────────────────
+    # ── fit error normalisation ───────────────────────────────────────────
     model.load_state_dict(torch.load(out_path, map_location=device))
     model.eval()
     all_errs = []
@@ -170,9 +159,7 @@ def train_rnn(X_train, y_train,
     flat = torch.cat(all_errs, dim=0).reshape(-1)
     model.err_mean.copy_(flat.mean())
     model.err_std.copy_(flat.std())
-    print(f"[RNN] err_mean={model.err_mean.item():.5f}  "
-          f"err_std={model.err_std.item():.5f}")
+    print(f"[MLP] err_mean={model.err_mean.item():.5f}  err_std={model.err_std.item():.5f}")
     torch.save(model.state_dict(), out_path)
-    print(f"[RNN] Saved with error stats: {out_path}")
-
+    print(f"[MLP] Saved with error stats: {out_path}")
     return out_path

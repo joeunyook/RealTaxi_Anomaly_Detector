@@ -1,0 +1,6 @@
+model,tau,detected/total,event_recall,event_precision,event_f1,false_alarms
+LOF,0.2553,3/3,1.0,0.333,0.5,6
+GRU,0.9983,3/3,1.0,0.333,0.5,6
+MLP,0.9981,3/3,1.0,0.6,0.75,2
+SARIMA,0.8459,3/3,1.0,0.333,0.5,6
+ENS,0.777,3/3,1.0,0.273,0.429,8

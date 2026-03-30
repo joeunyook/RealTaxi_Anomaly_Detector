@@ -1,28 +1,22 @@
-import json
 import numpy as np
-import pandas as pd
 import torch
 
 from src.models.lof import LOFDetector
-from src.models.rnn import GRUAnomalyClassifier
-from src.models.vae import WindowVAE
-from src.models.ensemble import normalize_minmax, ensemble_mean
+from src.models.rnn import GRUSeasonalBaseline
+from src.models.ensemble import ensemble_mean
+
 
 def rnn_scores(model, X, device):
+    """Max sigmoid-normalised seasonal deviation across the window. Shape: (N,)."""
     model.eval()
+    scores = []
     with torch.no_grad():
-        xb = torch.tensor(X, dtype=torch.float32, device=device)
-        logits = model(xb).detach().cpu().numpy()
-    return 1.0 / (1.0 + np.exp(-logits))  # sigmoid -> [0,1]
+        for i in range(0, len(X), 512):
+            xb = torch.tensor(X[i:i+512], dtype=torch.float32, device=device)
+            s  = model.anomaly_scores(xb)
+            scores.append(s.max(dim=1).values.cpu().numpy())
+    return np.concatenate(scores)
 
-def vae_scores(model, X, device):
-    model.eval()
-    Xf = X.reshape(X.shape[0], -1)
-    with torch.no_grad():
-        xb = torch.tensor(Xf, dtype=torch.float32, device=device)
-        x_hat, _, _ = model(xb)
-        recon = torch.mean((x_hat - xb) ** 2, dim=1).detach().cpu().numpy()
-    return recon  # not yet [0,1]
 
 def run_all_scores(split, cfg, paths):
     paths.OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -30,10 +24,21 @@ def run_all_scores(split, cfg, paths):
     paths.TAB_DIR.mkdir(parents=True, exist_ok=True)
     paths.MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
-    # load trained models
-    device = torch.device(cfg.DEVICE if torch.cuda.is_available() else "cpu")
+    device   = torch.device(cfg.DEVICE if torch.cuda.is_available() else "cpu")
+    time_dim = split.X_train.shape[-1] - 1
 
-    # LOF
-    lof = LOFDetector()
-    # For simplicity: refit on train windows each time in scripts
-    return device
+    import pickle
+    with open(paths.MODEL_DIR / "lof.pkl", "rb") as f:
+        lof = pickle.load(f)
+
+    rnn = GRUSeasonalBaseline(
+        time_dim=time_dim, hidden=cfg.RNN_HIDDEN,
+        layers=cfg.RNN_LAYERS, dropout=cfg.RNN_DROPOUT,
+    ).to(device)
+    rnn.load_state_dict(torch.load(paths.MODEL_DIR / "rnn.pt", map_location=device))
+
+    lof_scores = lof.score(split.X_test)
+    rnn_s      = rnn_scores(rnn, split.X_test, device)
+    ens_scores = ensemble_mean(lof_scores, rnn_s)
+
+    return {"LOF": lof_scores, "RNN": rnn_s, "ENS": ens_scores}
