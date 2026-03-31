@@ -13,8 +13,13 @@ class LOFDetector:
 
     @staticmethod
     def _flatten_windows(X: np.ndarray) -> np.ndarray:
-        # X: (N, W, D) -> (N, W*D)
-        return X.reshape(X.shape[0], -1)
+        # Use the last timestep only: (N, W, D) → (N, D)
+        # With D=5: (demand, sin_h, cos_h, sin_d, cos_d) — a 5-D point per slot.
+        # LOF is a nearest-neighbour density estimator; the curse of dimensionality
+        # makes distances meaningless in the old 240-D space (48×5).  5-D is close
+        # to ideal.  The time features already encode position so the full window
+        # carries no additional context that LOF could usefully exploit.
+        return X[:, -1, :]
 
     def fit(self, X_train: np.ndarray):
         Z = self._flatten_windows(X_train)

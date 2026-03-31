@@ -67,6 +67,58 @@ def best_f1_threshold(y_true: np.ndarray, y_score: np.ndarray):
     i  = int(np.argmax(f1))
     return float(thr[i]), float(f1[i]), float(prec[i]), float(rec[i])
 
+
+def best_combined_threshold(y_true: np.ndarray, y_score: np.ndarray):
+    """
+    Select τ by maximising Youden's J (from ROC) + F1 (from PR curve).
+
+    Why this beats argmax F1 alone when val has very few positive samples
+    -------------------------------------------------------------------
+    argmax F1 uses precision in its denominator, which collapses when positives
+    are rare — the optimum gets pinned to the lowest τ that catches the single
+    val event, ignoring false alarm density entirely.
+
+    Youden's J = TPR - FPR uses FPR, which is computed over *all normal samples*
+    (thousands of val-normal slots).  It has full statistical power regardless of
+    how few positive events exist.  Adding J to F1 breaks the pin by penalising
+    high FPR — the combined argmax finds a τ that balances true-positive rate
+    against the false-alarm rate, not just against precision from few positives.
+
+    Returns (tau*, combined_score, precision, recall)
+    """
+    prec, rec, thr_pr = precision_recall_curve(y_true, y_score)
+    fpr,  tpr, thr_roc = roc_curve(y_true, y_score)
+
+    # precision_recall_curve returns len(thr_pr) = len(prec) - 1
+    # Use thr_pr directly; prec/rec need [:-1] to match
+    f1 = (2 * prec[:-1] * rec[:-1]) / (prec[:-1] + rec[:-1] + 1e-12)
+
+    # Interpolate Youden's J onto the PR threshold grid
+    # roc_curve: thr_roc[0] is highest, thr_roc[-1] is lowest — must sort ascending
+    sort_idx = np.argsort(thr_roc)
+    j_at_pr  = np.interp(thr_pr,
+                         thr_roc[sort_idx],
+                         (tpr - fpr)[sort_idx])
+
+    combined = j_at_pr + f1
+    i        = int(np.argmax(combined))
+    return float(thr_pr[i]), float(combined[i]), float(prec[i]), float(rec[i])
+
+
+def best_fbeta_threshold(y_true: np.ndarray, y_score: np.ndarray, beta: float):
+    """
+    Sweep the PR curve and return (tau*, fbeta, precision, recall) at max F-beta.
+
+    beta > 1 weights recall more than precision:
+      beta = 2.0  → recall weighted 4×   (τ_micro: false micro alerts are free)
+      beta = 1.5  → recall weighted 2.25× (τ_macro: GRU already filtered spikes)
+    """
+    prec, rec, thr = precision_recall_curve(y_true, y_score)
+    b2 = beta ** 2
+    fb = (1 + b2) * prec[:-1] * rec[:-1] / (b2 * prec[:-1] + rec[:-1] + 1e-12)
+    i  = int(np.argmax(fb))
+    return float(thr[i]), float(fb[i]), float(prec[i]), float(rec[i])
+
 def apply_threshold(y_score: np.ndarray, tau: float):
     return (y_score >= tau).astype(int)
 

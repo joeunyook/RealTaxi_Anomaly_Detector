@@ -21,14 +21,33 @@ class Paths:
 
 @dataclass(frozen=True)
 class DataCfg:
-    
-    WINDOW: int = 48               # 48 * 30min = 24 hours
+
+    WINDOW: int = 2                # 2 × 30min = 1h micro window
+    #   sin/cos encoding gives every slot full positional identity, so a 24h
+    #   window adds no context — only dilutes the onset signal.  1h is enough
+    #   to give the MLP a transition step while staying effectively pointwise.
     STRIDE: int = 1
     # chronological splits
     TRAIN_FRAC: float = 0.60
     VAL_FRAC: float = 0.20         # test = rest
     # feature options
     USE_TIME_FEATURES: bool = True # sin/cos hour + day-of-week
+
+
+@dataclass(frozen=True)
+class MacroCfg:
+    """Second-stage GRU that consumes 3h of per-slot micro scores."""
+    WINDOW:   int   = 48       # 48 × 30min = 24h context window for macro GRU
+    HIDDEN:   int   = 32
+    LAYERS:   int   = 1
+    EPOCHS:   int   = 50
+    LR:       float = 1e-3
+    PATIENCE: int   = 10
+    BATCH:    int   = 128
+
+    # F-beta for threshold selection
+    MICRO_FBETA: float = 2.0   # τ_micro: recall 4× > precision (micro FAs are free)
+    MACRO_FBETA: float = 1.5   # τ_macro: recall 2.25× > precision (GRU already filters spikes)
 
 @dataclass(frozen=True)
 class TrainCfg:
@@ -75,3 +94,8 @@ class TrainCfg:
 class LofCfg:
     N_NEIGHBORS: int = 35
     CONTAMINATION: float = 0.1     # used only for internal LOF behavior
+
+@dataclass(frozen=True)
+class KernelCfg:
+    BANDWIDTH_HOUR: float = 0.08   # Gaussian σ for (sin_h, cos_h) kernel ≈ ±1 slot
+    BANDWIDTH_DOW:  float = 0.40   # Gaussian σ for (sin_d, cos_d) kernel ≈ adjacent days
