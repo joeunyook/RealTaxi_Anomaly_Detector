@@ -61,17 +61,32 @@ class TrainCfg:
     MLP_LR_FACTOR: float = 0.5
     MLP_LR_PATIENCE: int = 7
 
-    # ── SARIMA ───────────────────────────────────────────────────────────
-    SARIMA_P: int = 1    # AR order
-    SARIMA_D: int = 0    # differencing
-    SARIMA_Q: int = 1    # MA order
-    SARIMA_SP: int = 1   # seasonal AR
-    SARIMA_SD: int = 0   # seasonal differencing
-    SARIMA_SQ: int = 1   # seasonal MA
-    SARIMA_S: int = 48   # seasonal period (48 × 30 min = 24 h)
-
 
 @dataclass(frozen=True)
 class LofCfg:
     N_NEIGHBORS: int = 35
     CONTAMINATION: float = 0.1     # used only for internal LOF behavior
+
+@dataclass(frozen=True)
+class KernelCfg:
+    BANDWIDTH_HOUR: float = 0.08   # Gaussian σ for (sin_h, cos_h) kernel ≈ ±1 slot
+    BANDWIDTH_DOW:  float = 0.40   # Gaussian σ for (sin_d, cos_d) kernel ≈ adjacent days
+
+@dataclass(frozen=True)
+class MacroCfg:
+    """Second-stage GRU that consumes 24h of per-slot micro scores."""
+    WINDOW:        int   = 48   # 48 × 30min = 24h context window
+    HIDDEN:        int   = 32
+    LAYERS:        int   = 1
+    EPOCHS:        int   = 50
+    LR:            float = 1e-3
+    PATIENCE:      int   = 10
+    BATCH:         int   = 128
+    SMOOTH_WINDOW: int   = 12   # 12 × 30min = 6h causal rolling mean
+    POST_EVENT_SLOTS:  int   = 12
+    POST_EVENT_WEIGHT: float = 4.0
+    # 3 binary channels [LOF_flag, GRU_flag, MLP_flag] — thresholded at each
+    # model's val-F1 optimal τ.  Binary {0,1} lets the GRU hidden state act as
+    # a momentum accumulator: saturates over multi-day events, resets instantly
+    # after isolated spikes → distinctive severity instead of a flat line.
+    INPUT_DIM: int = 3

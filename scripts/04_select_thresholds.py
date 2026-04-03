@@ -21,11 +21,12 @@ def main():
     ts_v = obj["val"]["ts"]
 
     score_map = {
-        "LOF":    obj["val"]["LOF"],
-        "GRU":    obj["val"]["GRU"],
-        "MLP":    obj["val"]["MLP"],
-        "SARIMA": obj["val"]["SARIMA"],
-        "ENS":    obj["val"]["ENS"],
+        "LOF":   obj["val"]["LOF"],
+        "GRU":   obj["val"]["GRU"],
+        "MLP":   obj["val"]["MLP"],
+        "KRN":   obj["val"]["KRN"],
+        "ENS":   obj["val"]["ENS"],
+        "MACRO": obj["val"]["MACRO"],
     }
 
     taus  = {}
@@ -55,11 +56,12 @@ def main():
     # apply thresholds to test scores → preds.csv
     scores_df = pd.read_csv(paths.OUT_DIR / "scores.csv")
     col_map = {
-        "LOF":    "LOF_score",
-        "GRU":    "GRU_score",
-        "MLP":    "MLP_score",
-        "SARIMA": "SARIMA_score",
-        "ENS":    "ENS_score",
+        "LOF":   "LOF_score",
+        "GRU":   "GRU_score",
+        "MLP":   "MLP_score",
+        "KRN":   "KRN_score",
+        "ENS":   "ENS_score",
+        "MACRO": "MACRO_score",
     }
     for name in col_map:
         scores_df[f"{name}_pred"] = apply_threshold(

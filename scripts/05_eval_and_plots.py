@@ -32,11 +32,12 @@ def main():
     gru_score = df["GRU_score"].to_numpy()
 
     score_dict = {
-        "LOF":    df["LOF_score"].to_numpy(),
-        "GRU":    gru_score,
-        "MLP":    df["MLP_score"].to_numpy(),
-        "SARIMA": df["SARIMA_score"].to_numpy(),
-        "ENS":    df["ENS_score"].to_numpy(),
+        "LOF":   df["LOF_score"].to_numpy(),
+        "GRU":   gru_score,
+        "MLP":   df["MLP_score"].to_numpy(),
+        "KRN":   df["KRN_score"].to_numpy(),
+        "ENS":   df["ENS_score"].to_numpy(),
+        "MACRO": df["MACRO_score"].to_numpy(),
     }
 
     # ── Layer 1: ranking ──────────────────────────────────────────────────
@@ -68,11 +69,12 @@ def main():
     y_p  = preds_df["label"].to_numpy()
 
     col_map = {
-        "LOF":    "LOF_score",
-        "GRU":    "GRU_score",
-        "MLP":    "MLP_score",
-        "SARIMA": "SARIMA_score",
-        "ENS":    "ENS_score",
+        "LOF":   "LOF_score",
+        "GRU":   "GRU_score",
+        "MLP":   "MLP_score",
+        "KRN":   "KRN_score",
+        "ENS":   "ENS_score",
+        "MACRO": "MACRO_score",
     }
     ev_rows = []
     for name in col_map:
@@ -120,22 +122,37 @@ def main():
 
     # ── Severity timeline plots ───────────────────────────────────────────
     from src.metrics import find_event_spans
-    spans = find_event_spans(ts, y)
-    pad   = np.timedelta64(24, "h")
+    spans      = find_event_spans(ts, y)
+    pad        = np.timedelta64(24, "h")
+    macro_score = score_dict["MACRO"]
 
     for i, (s_ts, e_ts) in enumerate(spans):
         mask = (ts >= s_ts - pad) & (ts <= e_ts + pad)
         if mask.sum() < 2:
             continue
+        event_title = f"Test event {i+1}:  {str(s_ts)[:10]} → {str(e_ts)[:10]}"
+
+        # GRU severity (baseline)
         plot_severity_timeline(
             out_path   = paths.FIG_DIR / f"fig4_event{i+1}_severity.png",
             ts         = ts[mask],
             true_score = true_sev[mask],
             pred_score = gru_score[mask],
             y_label    = y[mask],
-            title      = f"Test event {i+1}:  {str(s_ts)[:10]} → {str(e_ts)[:10]}",
+            title      = f"[GRU] {event_title}",
         )
         print(f"Saved: fig4_event{i+1}_severity.png")
+
+        # MacroGRU severity (new — for direct comparison with GRU)
+        plot_severity_timeline(
+            out_path   = paths.FIG_DIR / f"fig4_event{i+1}_severity_macro.png",
+            ts         = ts[mask],
+            true_score = true_sev[mask],
+            pred_score = macro_score[mask],
+            y_label    = y[mask],
+            title      = f"[MACRO] {event_title}",
+        )
+        print(f"Saved: fig4_event{i+1}_severity_macro.png")
 
     # ── Diagnostic overlay: demand + GT + model flags ─────────────────────
     raw_df = pd.read_csv(paths.DATA_CSV, parse_dates=["timestamp"])
@@ -147,7 +164,7 @@ def main():
 
     pred_dict = {
         name: preds_df[f"{name}_pred"].to_numpy()
-        for name in ["LOF", "GRU", "MLP", "SARIMA", "ENS"]
+        for name in ["LOF", "GRU", "MLP", "KRN", "ENS", "MACRO"]
     }
 
     plot_anomaly_overlay(
