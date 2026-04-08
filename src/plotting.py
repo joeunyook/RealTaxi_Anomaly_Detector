@@ -30,22 +30,33 @@ def plot_score_distributions(out_path, y_true, score_dict):
 
 
 def plot_roc_pr(out_path_roc, out_path_pr, y_true, score_dict):
-    plt.figure(figsize=(7, 6))
+    _FS = 40      # 300 % increase over matplotlib default (~10 pt)
+    _FS_AX = 20  # axis labels and ticks halved
+
+    fig, ax = plt.subplots(figsize=(7, 6))
     for name, s in score_dict.items():
         fpr, tpr, _ = roc_points(y_true, s)
-        plt.plot(fpr, tpr, label=name)
-    plt.plot([0, 1], [0, 1], linestyle="--", color="gray")
-    plt.xlabel("FPR");  plt.ylabel("TPR")
-    plt.legend();  plt.tight_layout()
-    plt.savefig(out_path_roc, dpi=200);  plt.close()
+        ax.plot(fpr, tpr, label=name, linewidth=2)
+    ax.plot([0, 1], [0, 1], linestyle="--", color="gray", linewidth=1.5)
+    ax.set_xlabel("FPR", fontsize=_FS_AX)
+    ax.set_ylabel("TPR", fontsize=_FS_AX)
+    ax.tick_params(axis="both", labelsize=_FS_AX)
+    ax.legend(fontsize=_FS // 4)
+    fig.tight_layout()
+    fig.savefig(out_path_roc, dpi=200)
+    plt.close(fig)
 
-    plt.figure(figsize=(7, 6))
+    fig, ax = plt.subplots(figsize=(7, 6))
     for name, s in score_dict.items():
         prec, rec, _ = pr_points(y_true, s)
-        plt.plot(rec, prec, label=name)
-    plt.xlabel("Recall");  plt.ylabel("Precision")
-    plt.legend();  plt.tight_layout()
-    plt.savefig(out_path_pr, dpi=200);  plt.close()
+        ax.plot(rec, prec, label=name, linewidth=2)
+    ax.set_xlabel("Recall", fontsize=_FS_AX)
+    ax.set_ylabel("Precision", fontsize=_FS_AX)
+    ax.tick_params(axis="both", labelsize=_FS_AX)
+    ax.legend(fontsize=_FS // 4)
+    fig.tight_layout()
+    fig.savefig(out_path_pr, dpi=200)
+    plt.close(fig)
 
 
 def plot_calibration(out_path, bin_centers, mean_pred, mean_true, counts):
@@ -114,7 +125,7 @@ def plot_anomaly_overlay(out_path, ts, demand, y_true, pred_dict):
     models  = list(pred_dict.keys())
     n       = len(models)
 
-    fig, axes = plt.subplots(n, 1, figsize=(22, 4 * n), sharex=True)
+    fig, axes = plt.subplots(n, 1, figsize=(40, 8 * n), sharex=True)
     if n == 1:
         axes = [axes]
 
@@ -163,8 +174,9 @@ def plot_anomaly_overlay(out_path, ts, demand, y_true, pred_dict):
                        linewidths=1.8, zorder=4, label="_fp")
 
         # ── formatting ────────────────────────────────────────────────────
-        ax.set_title(model_name, fontsize=12, fontweight="bold", loc="left")
-        ax.set_ylabel("Passengers")
+        ax.set_title(model_name, fontsize=72, fontweight="bold", loc="left")
+        ax.set_ylabel("Passengers", fontsize=60)
+        ax.tick_params(axis="both", labelsize=60)
         ax.yaxis.set_major_formatter(
             plt.FuncFormatter(lambda x, _: f"{int(x):,}")
         )
@@ -172,16 +184,16 @@ def plot_anomaly_overlay(out_path, ts, demand, y_true, pred_dict):
     # ── x-axis ticks on bottom subplot ───────────────────────────────────
     axes[-1].xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
     axes[-1].xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0))
-    plt.setp(axes[-1].xaxis.get_majorticklabels(), rotation=30, ha="right")
-    axes[-1].set_xlabel("Date")
+    plt.setp(axes[-1].xaxis.get_majorticklabels(), rotation=30, ha="right", fontsize=60)
+    axes[-1].set_xlabel("Date", fontsize=60)
 
     # ── shared legend at the top ──────────────────────────────────────────
     fig.legend(handles=legend_patches, loc="upper center",
-               ncol=4, fontsize=10, framealpha=0.9,
+               ncol=4, fontsize=60, framealpha=0.9,
                bbox_to_anchor=(0.5, 1.01))
 
     fig.suptitle("Anomaly Detection — Actual Demand vs Model Flags (Test Set)",
-                 fontsize=13, fontweight="bold", y=1.03)
+                 fontsize=78, fontweight="bold", y=1.03)
 
     plt.tight_layout()
     plt.savefig(out_path, dpi=180, bbox_inches="tight")
